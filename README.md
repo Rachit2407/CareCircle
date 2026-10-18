@@ -1,4 +1,4 @@
-# CareCircle AI 🎙️👵
+# CareCircle AI 
 
 **Voice-first AI Care Coordination Assistant for Families**
 
