@@ -1,0 +1,25 @@
+[project]
+name = "carecircle-ai-engine"
+version = "0.1.0"
+description = "AI Orchestration Engine for CareCircle AI (Voice, MCP Client, Safety Gating, Grounded Response)"
+authors = [{ name = "Rachit", email = "rachit@carecircle.local" }]
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.28.0",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.2.0",
+    "httpx>=0.27.0",
+    "python-multipart>=0.0.9",
+    "mcp>=1.0.0",
+    "openai>=1.14.0",
+    "python-dotenv>=1.0.1",
+]
+requires-python = ">=3.10"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
