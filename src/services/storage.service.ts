@@ -95,20 +95,47 @@ export class StorageService {
     };
   }
 
-  public static verifySignature(method: 'GET' | 'PUT', storageKey: string, expiresTimestamp: number, signature: string, contentType?: string): boolean {
-    if (Math.floor(Date.now() / 1000) > expiresTimestamp) {
-      return false; // Expired
+  public static verifySignature(
+    method: 'GET' | 'PUT',
+    storageKey: string,
+    expiresTimestamp: number,
+    signature: string,
+    contentType?: string
+  ): boolean {
+    try {
+      if (!signature || typeof signature !== 'string') {
+        return false;
+      }
+
+      if (Math.floor(Date.now() / 1000) > expiresTimestamp) {
+        return false; // Expired
+      }
+
+      // SHA256 hex digest is exactly 64 hex characters (32 bytes)
+      if (signature.length !== 64 || !/^[0-9a-fA-F]{64}$/.test(signature)) {
+        return false;
+      }
+
+      const payload =
+        method === 'PUT'
+          ? `PUT\n${storageKey}\n${contentType || ''}\n${expiresTimestamp}`
+          : `GET\n${storageKey}\n${expiresTimestamp}`;
+
+      const expectedSig = crypto
+        .createHmac('sha256', this.signingSecret)
+        .update(payload)
+        .digest('hex');
+
+      const sigBuffer = Buffer.from(signature, 'hex');
+      const expectedBuffer = Buffer.from(expectedSig, 'hex');
+
+      if (sigBuffer.length !== expectedBuffer.length) {
+        return false;
+      }
+
+      return crypto.timingSafeEqual(sigBuffer, expectedBuffer);
+    } catch {
+      return false;
     }
-
-    const payload = method === 'PUT'
-      ? `PUT\n${storageKey}\n${contentType || ''}\n${expiresTimestamp}`
-      : `GET\n${storageKey}\n${expiresTimestamp}`;
-
-    const expectedSig = crypto
-      .createHmac('sha256', this.signingSecret)
-      .update(payload)
-      .digest('hex');
-
-    return crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expectedSig, 'hex'));
   }
 }

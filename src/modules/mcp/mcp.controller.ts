@@ -1,3 +1,4 @@
+// TODO(mcp): replaced by real MCP server
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
@@ -97,18 +98,19 @@ export class McpController {
     const requestId = req.requestId || (req.headers['x-request-id'] as string) || crypto.randomUUID();
     const { tool, arguments: args = {}, context = {} } = req.body;
 
-    const SYSTEM_ACTOR_HEX = '000000000000000000000001';
-    const callerUser = req.user || {
-      id: SYSTEM_ACTOR_HEX,
-      email: 'ai-engine@carecircle.internal',
-      displayName: 'CareCircle AI Engine',
-      role: 'admin' as const,
-      timezone: 'UTC',
-    };
+    const callerUser = req.user;
+    if (!callerUser) {
+      res.status(401).json({
+        ok: false,
+        error: { code: 'UNAUTHENTICATED', message: 'Authentication required' },
+        requestId,
+      });
+      return;
+    }
 
     const validActorId = mongoose.Types.ObjectId.isValid(callerUser.id)
       ? callerUser.id
-      : SYSTEM_ACTOR_HEX;
+      : '000000000000000000000001';
 
     const targetPatientId =
       context.patientId ||

@@ -3,7 +3,7 @@ import { AuthService } from './auth.service.js';
 import { sendSuccess } from '../../utils/apiResponse.js';
 import { User, IUser } from '../users/user.model.js';
 import { CareRelationship } from '../relationships/careRelationship.model.js';
-import { NotFoundError } from '../../utils/errors.js';
+import { UnauthenticatedError } from '../../utils/errors.js';
 import { env } from '../../config/env.js';
 
 interface FormattedSessionUser {
@@ -76,14 +76,38 @@ export class AuthController {
     return null;
   }
 
-  private static setAuthCookie(res: Response, token: string): void {
-    res.cookie('accessToken', token, {
+  private static setAuthCookies(res: Response, tokens: { accessToken: string; refreshToken: string }): void {
+    res.cookie('accessToken', tokens.accessToken, {
       httpOnly: true,
       secure: env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
+
+    res.cookie('refreshToken', tokens.refreshToken, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+  }
+
+  private static buildAuthResponse(
+    req: Request,
+    userSafe: FormattedSessionUser,
+    circle: FormattedCircle | null,
+    tokens: any
+  ) {
+    const includeTokens =
+      env.RETURN_TOKENS_IN_BODY ||
+      req.headers['x-client-type'] === 'native';
+
+    if (includeTokens) {
+      return { user: userSafe, circle, tokens };
+    }
+    return { user: userSafe, circle };
   }
 
   public static async register(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -92,8 +116,9 @@ export class AuthController {
       const userSafe = AuthController.formatSessionUser(user);
       const circle = await AuthController.getCircleForUser(user);
 
-      AuthController.setAuthCookie(res, tokens.accessToken);
-      sendSuccess(res, { user: userSafe, circle, tokens }, 201);
+      AuthController.setAuthCookies(res, tokens);
+      const responsePayload = AuthController.buildAuthResponse(req, userSafe, circle, tokens);
+      sendSuccess(res, responsePayload, 201);
     } catch (error) {
       next(error);
     }
@@ -106,8 +131,9 @@ export class AuthController {
       const userSafe = AuthController.formatSessionUser(user);
       const circle = await AuthController.getCircleForUser(user);
 
-      AuthController.setAuthCookie(res, tokens.accessToken);
-      sendSuccess(res, { user: userSafe, circle, tokens }, 200);
+      AuthController.setAuthCookies(res, tokens);
+      const responsePayload = AuthController.buildAuthResponse(req, userSafe, circle, tokens);
+      sendSuccess(res, responsePayload, 200);
     } catch (error) {
       next(error);
     }
@@ -117,7 +143,7 @@ export class AuthController {
     try {
       const user = await User.findById(req.user?.id).select('-passwordHash');
       if (!user) {
-        throw new NotFoundError('User session not found');
+        throw new UnauthenticatedError('User session not found');
       }
 
       const userSafe = AuthController.formatSessionUser(user);
@@ -129,10 +155,21 @@ export class AuthController {
     }
   }
 
-  public static async logout(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async logout(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      // Bumping tokenVersion revokes issued JWTs
+      if (req.user?.id) {
+        await User.findByIdAndUpdate(req.user.id, { $inc: { tokenVersion: 1 } });
+      }
+
       res.clearCookie('accessToken', {
         httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+      });
+      res.clearCookie('refreshToken', {
+        httpOnly: true,
+        sameSite: 'lax',
         path: '/',
       });
       sendSuccess(res, { ok: true, message: 'Logged out successfully' }, 200);
@@ -143,10 +180,37 @@ export class AuthController {
 
   public static async refresh(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { refreshToken } = req.body;
+      let refreshToken = req.body?.refreshToken;
+      if (!refreshToken) {
+        if ((req as any).cookies?.refreshToken) {
+          refreshToken = (req as any).cookies.refreshToken;
+        } else if (req.headers.cookie) {
+          const cookies = Object.fromEntries(
+            req.headers.cookie.split(';').map((c) => {
+              const [k, ...v] = c.trim().split('=');
+              return [k, decodeURIComponent(v.join('='))];
+            })
+          );
+          refreshToken = cookies.refreshToken;
+        }
+      }
+
+      if (!refreshToken) {
+        throw new UnauthenticatedError('Refresh token is required');
+      }
+
       const tokens = await AuthService.refresh(refreshToken);
-      AuthController.setAuthCookie(res, tokens.accessToken);
-      sendSuccess(res, { tokens }, 200);
+      AuthController.setAuthCookies(res, tokens);
+
+      const includeTokens =
+        env.RETURN_TOKENS_IN_BODY ||
+        req.headers['x-client-type'] === 'native';
+
+      if (includeTokens) {
+        sendSuccess(res, { tokens }, 200);
+      } else {
+        sendSuccess(res, { message: 'Token refreshed successfully' }, 200);
+      }
     } catch (error) {
       next(error);
     }
@@ -156,7 +220,7 @@ export class AuthController {
     try {
       const user = await User.findById(req.user?.id).select('-passwordHash');
       if (!user) {
-        throw new NotFoundError('User profile not found');
+        throw new UnauthenticatedError('User profile not found');
       }
 
       const userSafe = AuthController.formatSessionUser(user);
@@ -167,4 +231,3 @@ export class AuthController {
     }
   }
 }
-

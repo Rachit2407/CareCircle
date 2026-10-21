@@ -18,7 +18,10 @@ export const idempotency = () => {
 
     const key = idempotencyKey.trim();
     const endpoint = `${req.method} ${req.baseUrl || ''}${req.path}`;
-    const actorId = req.user?.id ? new mongoose.Types.ObjectId(req.user.id) : undefined;
+    const actorId =
+      req.user?.id && mongoose.Types.ObjectId.isValid(req.user.id)
+        ? new mongoose.Types.ObjectId(req.user.id)
+        : new mongoose.Types.ObjectId('000000000000000000000000');
 
     // Hash the request body to verify payload integrity
     const requestHash = crypto
@@ -27,8 +30,16 @@ export const idempotency = () => {
       .digest('hex');
 
     try {
-      const existingRecord = await IdempotencyRecord.findOne({ key });
+      // 1. Check existing record scoped by { actorId, key }
+      const existingRecord = await IdempotencyRecord.findOne({ actorId, key });
       if (existingRecord) {
+        if (existingRecord.endpoint !== endpoint) {
+          throw new ConflictError(
+            'Idempotency key has already been used on a different endpoint',
+            'IDEMPOTENCY_CONFLICT'
+          );
+        }
+
         if (existingRecord.requestHash !== requestHash) {
           throw new ConflictError(
             'Idempotency key has already been used with a different request payload',
@@ -36,31 +47,69 @@ export const idempotency = () => {
           );
         }
 
-        // Return stored idempotent response
-        res.setHeader('X-Cache-Lookup', 'HIT');
-        res.setHeader('X-Idempotent-Replay', 'true');
-        res.status(existingRecord.statusCode).json(existingRecord.responseBody);
-        return;
+        if (existingRecord.status === 'processing') {
+          throw new ConflictError(
+            'A request with this idempotency key is currently processing',
+            'IDEMPOTENCY_CONFLICT'
+          );
+        }
+
+        if (existingRecord.status === 'completed') {
+          // Return stored idempotent response
+          res.setHeader('X-Cache-Lookup', 'HIT');
+          res.setHeader('X-Idempotent-Replay', 'true');
+          res.status(existingRecord.statusCode || 200).json(existingRecord.responseBody);
+          return;
+        }
+
+        // If previous attempt failed, clean up and allow retry
+        await IdempotencyRecord.deleteOne({ _id: existingRecord._id });
       }
 
-      // Intercept res.json to capture response
+      // 2. Insert 'processing' record to prevent concurrent duplicate execution
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      try {
+        await IdempotencyRecord.create({
+          key,
+          actorId,
+          endpoint,
+          requestHash,
+          status: 'processing',
+          expiresAt,
+        });
+      } catch (createErr: any) {
+        if (createErr.code === 11000) {
+          // Another request acquired the processing lock concurrently
+          throw new ConflictError(
+            'A request with this idempotency key is currently processing',
+            'IDEMPOTENCY_CONFLICT'
+          );
+        }
+        throw createErr;
+      }
+
+      // 3. Intercept res.json to capture response on completion
       const originalJson = res.json.bind(res);
+      let captured = false;
+
       res.json = (body: any): Response => {
-        // Only cache 2xx and 4xx responses, don't cache 5xx server crashes
-        if (res.statusCode >= 200 && res.statusCode < 500) {
-          const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-          IdempotencyRecord.create({
-            key,
-            actorId,
-            endpoint,
-            requestHash,
-            statusCode: res.statusCode,
-            responseBody: body,
-            expiresAt,
-          }).catch((err) => {
-            // Log error without breaking current response
-            console.error('Failed to save idempotency record:', err);
-          });
+        if (!captured) {
+          captured = true;
+          if (res.statusCode >= 200 && res.statusCode < 500) {
+            IdempotencyRecord.updateOne(
+              { actorId, key },
+              {
+                status: 'completed',
+                statusCode: res.statusCode,
+                responseBody: body,
+              }
+            ).catch((err) => {
+              console.error('Failed to update idempotency record:', err);
+            });
+          } else {
+            // For 5xx server crashes, release the lock so the client can retry
+            IdempotencyRecord.deleteOne({ actorId, key }).catch(() => {});
+          }
         }
         return originalJson(body);
       };

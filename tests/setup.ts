@@ -12,6 +12,17 @@ beforeAll(async () => {
     await mongoose.connect(LOCAL_TEST_URI, {
       serverSelectionTimeoutMS: 2000,
     });
+    try {
+      if (mongoose.connection.db) {
+        const collections = await mongoose.connection.db.listCollections({ name: 'idempotencyrecords' }).toArray();
+        if (collections.length > 0) {
+          const indexes = await mongoose.connection.db.collection('idempotencyrecords').indexes();
+          if (indexes.some((i) => i.name === 'key_1')) {
+            await mongoose.connection.db.collection('idempotencyrecords').dropIndex('key_1');
+          }
+        }
+      }
+    } catch {}
     return;
   } catch (err) {
     console.log('Local MongoDB not reached, attempting MongoMemoryServer...');

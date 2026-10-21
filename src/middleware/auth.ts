@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { env } from '../config/env.js';
-import { UnauthenticatedError } from '../utils/errors.js';
-import { UserRole } from '../modules/users/user.model.js';
+import { UnauthenticatedError, ForbiddenScopeError } from '../utils/errors.js';
+import { User, UserRole } from '../modules/users/user.model.js';
 
 export interface AuthUserPayload {
   id: string;
@@ -10,6 +11,7 @@ export interface AuthUserPayload {
   displayName: string;
   role: UserRole;
   timezone: string;
+  tokenVersion?: number;
 }
 
 declare global {
@@ -20,19 +22,23 @@ declare global {
   }
 }
 
-export const authenticate = (req: Request, _res: Response, next: NextFunction): void => {
+export const authenticate = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
   try {
     // 1. Check for Internal Service Token (AI Engine / internal MCP client calls)
     const serviceToken = req.headers['x-internal-service-token'];
-    if (serviceToken && serviceToken === env.INTERNAL_SERVICE_TOKEN) {
-      req.user = {
-        id: (req.headers['x-actor-id'] as string) || 'system_ai_engine',
-        email: 'ai-engine@carecircle.internal',
-        displayName: 'CareCircle AI Engine',
-        role: 'admin',
-        timezone: 'UTC',
-      };
-      return next();
+    if (env.AI_ENABLED && env.INTERNAL_SERVICE_TOKEN && typeof serviceToken === 'string') {
+      const expectedBuf = Buffer.from(env.INTERNAL_SERVICE_TOKEN);
+      const providedBuf = Buffer.from(serviceToken);
+      if (expectedBuf.length === providedBuf.length && crypto.timingSafeEqual(expectedBuf, providedBuf)) {
+        req.user = {
+          id: (req.headers['x-actor-id'] as string) || '000000000000000000000001',
+          email: 'ai-engine@carecircle.internal',
+          displayName: 'CareCircle AI Engine',
+          role: 'admin',
+          timezone: 'UTC',
+        };
+        return next();
+      }
     }
 
     let token: string | undefined;
@@ -62,12 +68,24 @@ export const authenticate = (req: Request, _res: Response, next: NextFunction): 
       throw new UnauthenticatedError('Invalid token payload');
     }
 
+    // Check token revocation if tokenVersion is present
+    if (decoded.tokenVersion !== undefined) {
+      const user = await User.findById(decoded.id).select('tokenVersion');
+      if (!user) {
+        throw new UnauthenticatedError('User no longer exists');
+      }
+      if (user.tokenVersion > decoded.tokenVersion) {
+        throw new UnauthenticatedError('Token revoked. Please login again.');
+      }
+    }
+
     req.user = {
       id: decoded.id,
       email: decoded.email,
       displayName: decoded.displayName,
       role: decoded.role,
       timezone: decoded.timezone || 'UTC',
+      tokenVersion: decoded.tokenVersion,
     };
 
     next();
@@ -89,7 +107,7 @@ export const requireRole = (allowedRoles: UserRole[]) => {
     }
 
     if (!allowedRoles.includes(req.user.role)) {
-      return next(new UnauthenticatedError('You do not possess the required role'));
+      return next(new ForbiddenScopeError('You do not possess the required role'));
     }
 
     next();

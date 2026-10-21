@@ -7,6 +7,7 @@ import { standardRateLimiter } from './middleware/rateLimiter.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { sendSuccess } from './utils/apiResponse.js';
 import { NotFoundError } from './utils/errors.js';
+import { aiGuard } from './middleware/aiGuard.js';
 
 // Route imports
 import authRoutes from './modules/auth/auth.routes.js';
@@ -27,9 +28,15 @@ export const createApp = (): Express => {
 
   // Security headers & CORS
   app.use(helmet());
+
+  const allowedOrigins =
+    env.NODE_ENV === 'production'
+      ? env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)
+      : true;
+
   app.use(
     cors({
-      origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN.split(','),
+      origin: allowedOrigins,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: [
@@ -37,9 +44,8 @@ export const createApp = (): Express => {
         'Authorization',
         'X-Request-ID',
         'Idempotency-Key',
-        'x-internal-service-token',
-        'x-actor-id',
         'Cookie',
+        'X-Client-Type',
       ],
       exposedHeaders: ['X-Request-ID', 'X-Idempotent-Replay', 'Set-Cookie'],
     })
@@ -71,9 +77,9 @@ export const createApp = (): Express => {
   app.get('/health', healthHandler);
   app.get(`${env.API_PREFIX}/health`, healthHandler);
 
-  // Dual-mount MCP endpoints for AI Engine MCPClientService
-  app.use('/mcp', mcpRoutes);
-  app.use(`${env.API_PREFIX}/mcp`, mcpRoutes);
+  // Dual-mount MCP endpoints for AI Engine MCPClientService (guarded by aiGuard)
+  app.use('/mcp', aiGuard, mcpRoutes);
+  app.use(`${env.API_PREFIX}/mcp`, aiGuard, mcpRoutes);
 
   // Dual-mount Auth endpoints for frontend flexibility
   app.use('/auth', authRoutes);
@@ -90,7 +96,7 @@ export const createApp = (): Express => {
   app.use(`${prefix}/records`, recordRoutes);
   app.use(`${prefix}/alerts`, alertRoutes);
   app.use(`${prefix}/audit`, auditRoutes);
-  app.use(`${prefix}/assistant`, assistantRoutes);
+  app.use(`${prefix}/assistant`, aiGuard, assistantRoutes);
 
   // 404 handler
   app.use((_req, _res, next) => {
@@ -102,4 +108,3 @@ export const createApp = (): Express => {
 
   return app;
 };
-

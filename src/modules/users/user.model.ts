@@ -9,6 +9,7 @@ export interface IUser extends Document {
   role: UserRole;
   phone?: string;
   timezone: string;
+  tokenVersion: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -21,6 +22,7 @@ const UserSchema = new Schema<IUser>(
     role: { type: String, required: true, enum: ['patient', 'caregiver', 'admin'], default: 'patient', index: true },
     phone: { type: String, trim: true },
     timezone: { type: String, default: 'UTC', trim: true },
+    tokenVersion: { type: Number, default: 0 },
   },
   {
     timestamps: true,

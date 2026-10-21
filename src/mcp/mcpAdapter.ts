@@ -1,3 +1,4 @@
+// TODO(mcp): replaced by real MCP server
 import { TaskService } from '../modules/tasks/task.service.js';
 import { MedicationSchedule, DoseLog } from '../modules/medications/medication.model.js';
 import { HealthReading } from '../modules/health-readings/reading.model.js';

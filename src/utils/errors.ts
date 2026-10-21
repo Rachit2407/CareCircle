@@ -7,7 +7,8 @@ export type ErrorCode =
   | 'IDEMPOTENCY_CONFLICT'
   | 'BUSINESS_RULE_VIOLATION'
   | 'RATE_LIMITED'
-  | 'INTERNAL_SERVER_ERROR';
+  | 'INTERNAL_SERVER_ERROR'
+  | 'AI_DISABLED';
 
 export class AppError extends Error {
   public readonly statusCode: number;

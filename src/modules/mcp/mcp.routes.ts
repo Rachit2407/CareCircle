@@ -1,30 +1,14 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router } from 'express';
 import { McpController } from './mcp.controller.js';
 import { authenticate } from '../../middleware/auth.js';
 
+// TODO(mcp): replaced by real MCP server
 const router = Router();
 
-// Middleware to support both token-authenticated callers and AI Engine service calls
-const mcpAuth = (req: Request, res: Response, next: NextFunction) => {
-  if (req.headers.authorization || req.headers.cookie || req.headers['x-internal-service-token']) {
-    return authenticate(req, res, next);
-  }
+// Discovery endpoint - requires authentication (JWT/cookie or internal service token)
+router.get('/tools', authenticate, McpController.listTools);
 
-  // Fallback internal caller identity for AI Engine direct MCP connection
-  req.user = {
-    id: (req.headers['x-actor-id'] as string) || 'system_ai_engine',
-    email: 'ai-engine@carecircle.internal',
-    displayName: 'CareCircle AI Engine',
-    role: 'admin',
-    timezone: 'UTC',
-  };
-  next();
-};
-
-// Discovery endpoint
-router.get('/tools', McpController.listTools);
-
-// Execution endpoint
-router.post('/call', mcpAuth, McpController.callTool);
+// Execution endpoint - requires authentication (JWT/cookie or internal service token)
+router.post('/call', authenticate, McpController.callTool);
 
 export default router;

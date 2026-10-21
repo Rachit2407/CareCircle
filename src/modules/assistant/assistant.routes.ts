@@ -1,17 +1,23 @@
+// TODO(mcp): replaced by real MCP server
 import { Router, Request, Response } from 'express';
 import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
+import { authenticate } from '../../middleware/auth.js';
 
 const router = Router();
 
-router.all('*', async (req: Request, res: Response) => {
+// Requires authentication (JWT/cookie or valid service token)
+router.all('*', authenticate, async (req: Request, res: Response) => {
   try {
     const targetUrl = `${env.AI_ENGINE_URL}${req.originalUrl}`;
     const headers: Record<string, string> = {
-      'x-internal-service-token': env.INTERNAL_SERVICE_TOKEN,
       'content-type': req.headers['content-type'] || 'application/json',
       accept: req.headers['accept'] || 'application/json',
     };
+
+    if (env.INTERNAL_SERVICE_TOKEN) {
+      headers['x-internal-service-token'] = env.INTERNAL_SERVICE_TOKEN;
+    }
 
     if (req.user?.id) {
       headers['x-actor-id'] = req.user.id;

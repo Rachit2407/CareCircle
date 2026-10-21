@@ -23,21 +23,23 @@ export class AuthService {
     return bcrypt.compare(password, hash);
   }
 
-  public static generateTokens(user: IUser | { _id: any; id?: string; email: string; displayName: string; role: UserRole; timezone: string }): TokenPair {
+  public static generateTokens(user: IUser | { _id: any; id?: string; email: string; displayName: string; role: UserRole; timezone: string; tokenVersion?: number }): TokenPair {
     const userId = (user as any)._id?.toString() || (user as any).id;
+    const tokenVersion = (user as any).tokenVersion ?? 0;
     const payload: AuthUserPayload = {
       id: userId,
       email: user.email,
       displayName: user.displayName,
       role: user.role,
       timezone: user.timezone || 'UTC',
+      tokenVersion,
     };
 
     const accessToken = jwt.sign(payload, env.JWT_SECRET, {
       expiresIn: env.JWT_EXPIRES_IN as any,
     });
 
-    const refreshToken = jwt.sign({ id: userId }, env.JWT_REFRESH_SECRET, {
+    const refreshToken = jwt.sign({ id: userId, tokenVersion }, env.JWT_REFRESH_SECRET, {
       expiresIn: env.JWT_REFRESH_EXPIRES_IN as any,
     });
 
@@ -127,13 +129,19 @@ export class AuthService {
 
   public static async refresh(refreshToken: string): Promise<TokenPair> {
     try {
-      const decoded = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET) as { id: string };
+      const decoded = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET) as { id: string; tokenVersion?: number };
       const user = await User.findById(decoded.id);
       if (!user) {
         throw new UnauthenticatedError('User no longer exists');
       }
+      if (decoded.tokenVersion !== undefined && user.tokenVersion > decoded.tokenVersion) {
+        throw new UnauthenticatedError('Refresh token has been revoked. Please login again.');
+      }
       return this.generateTokens(user);
     } catch (error) {
+      if (error instanceof UnauthenticatedError) {
+        throw error;
+      }
       throw new UnauthenticatedError('Invalid or expired refresh token');
     }
   }
