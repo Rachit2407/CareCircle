@@ -8,7 +8,7 @@ import { ApiError, type ApiErrorKind } from './api-error';
  */
 
 type Transport = (url: string, init: RequestInit) => Promise<Response>;
-type Method = 'GET' | 'POST';
+type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 type Schema<T> = z.ZodType<T, z.ZodTypeDef, unknown>;
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -37,7 +37,15 @@ interface RequestOptions {
 
 const errorBodySchema = z.object({
   code: z.string().optional(),
+  message: z.string().optional(),
   fieldErrors: z.record(z.union([z.string(), z.array(z.string())])).optional(),
+  error: z
+    .object({
+      code: z.string().optional(),
+      message: z.string().optional(),
+      fieldErrors: z.record(z.union([z.string(), z.array(z.string())])).optional(),
+    })
+    .optional(),
 });
 
 function kindFromStatus(status: number): ApiErrorKind {
@@ -62,14 +70,16 @@ async function readJson(response: Response): Promise<unknown> {
 async function toApiError(response: Response): Promise<ApiError> {
   const parsed = errorBodySchema.safeParse(await readJson(response));
   const body = parsed.success ? parsed.data : {};
+  const code = body.code ?? body.error?.code;
+  const rawFieldErrors = body.fieldErrors ?? body.error?.fieldErrors ?? {};
   const fieldErrors: Record<string, string> = {};
-  for (const [field, value] of Object.entries(body.fieldErrors ?? {})) {
+  for (const [field, value] of Object.entries(rawFieldErrors)) {
     const first = Array.isArray(value) ? value[0] : value;
     if (first) fieldErrors[field] = first;
   }
   return new ApiError(kindFromStatus(response.status), {
     status: response.status,
-    code: body.code,
+    code,
     fieldErrors,
   });
 }
@@ -139,5 +149,22 @@ export const api = {
   },
   async postVoid(path: string, body: unknown, options: RequestOptions = {}): Promise<void> {
     await send('POST', path, body, options);
+  },
+  async patch<T>(
+    path: string,
+    body: unknown,
+    schema: Schema<T>,
+    options: RequestOptions = {},
+  ): Promise<T> {
+    return parse(await send('PATCH', path, body, options), schema, true);
+  },
+  async patchVoid(path: string, body: unknown, options: RequestOptions = {}): Promise<void> {
+    await send('PATCH', path, body, options);
+  },
+  async putVoid(path: string, body: unknown, options: RequestOptions = {}): Promise<void> {
+    await send('PUT', path, body, options);
+  },
+  async deleteVoid(path: string, options: RequestOptions = {}): Promise<void> {
+    await send('DELETE', path, undefined, options);
   },
 };

@@ -12,19 +12,29 @@ export const STATUS_MAP = {
   overdue: { label: 'Overdue', tone: 'danger' },
   cancelled: { label: 'Cancelled', tone: 'quiet' },
   unassigned: { label: 'Unassigned', tone: 'warning' },
+  // Task priorities
+  urgent: { label: 'Urgent', tone: 'danger' },
+  high: { label: 'High', tone: 'warning' },
+  medium: { label: 'Medium', tone: 'info' },
+  low: { label: 'Low', tone: 'quiet' },
   // Medication reminders and appointments
   scheduled: { label: 'Scheduled', tone: 'info' },
+  rescheduled: { label: 'Rescheduled', tone: 'warning' },
   sent: { label: 'Sent', tone: 'info' },
   acknowledged: { label: 'Acknowledged', tone: 'success' },
   reported_completed: { label: 'Reported completed', tone: 'success' },
+  taken: { label: 'Taken', tone: 'success' },
   skipped: { label: 'Skipped', tone: 'warning' },
   missed: { label: 'Missed', tone: 'danger' },
   failed: { label: 'Failed', tone: 'danger' },
-  // Notifications: queued is not delivered
+  active: { label: 'Active', tone: 'success' },
+  paused: { label: 'Paused', tone: 'quiet' },
+  // Notifications & Alerts
   queued: { label: 'Queued', tone: 'quiet' },
   delivered: { label: 'Delivered', tone: 'success' },
   unread: { label: 'Unread', tone: 'info' },
   read: { label: 'Read', tone: 'quiet' },
+  critical: { label: 'Critical alert', tone: 'danger' },
   // Assistant and writes
   processing: { label: 'Processing request', tone: 'info' },
   needs_clarification: { label: 'Needs clarification', tone: 'warning' },
@@ -32,7 +42,7 @@ export const STATUS_MAP = {
   saved: { label: 'Saved', tone: 'success' },
   could_not_complete: { label: 'Could not complete', tone: 'danger' },
   unconfirmed: { label: 'Unconfirmed', tone: 'warning' },
-  // Invitations
+  // Relationships and Invitations
   accepted: { label: 'Accepted', tone: 'success' },
   expired: { label: 'Expired', tone: 'warning' },
   revoked: { label: 'Revoked', tone: 'quiet' },

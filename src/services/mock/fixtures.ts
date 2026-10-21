@@ -12,6 +12,8 @@ export const DEMO_SESSION: Session = {
     displayName: 'Anita Rao',
     email: DEMO_CREDENTIALS.email,
     timeZone: 'Asia/Kolkata',
+    role: 'caregiver',
+    phone: '+91 98765 43210',
   },
   circle: {
     id: 'cir_demo',

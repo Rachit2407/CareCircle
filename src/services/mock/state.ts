@@ -46,7 +46,14 @@ export const mockDb = {
     const key = normalise(email);
     nextUserNumber += 1;
     const session: Session = {
-      user: { id: `usr_new_${nextUserNumber}`, displayName, email: key, timeZone: 'Asia/Kolkata' },
+      user: {
+        id: `usr_new_${nextUserNumber}`,
+        displayName,
+        email: key,
+        timeZone: 'Asia/Kolkata',
+        role: 'caregiver',
+        phone: undefined,
+      },
       circle: null,
     };
     users.set(key, { password, session });

@@ -15,7 +15,7 @@ export interface MockReply {
 }
 
 export interface MockRoute {
-  method: 'GET' | 'POST';
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   pattern: string;
   /** True when the route needs a signed-in session. */
   requiresSession: boolean;

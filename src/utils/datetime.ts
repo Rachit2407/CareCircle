@@ -58,6 +58,10 @@ export function formatDateTime(iso: string, timeZone: string, options: FormatOpt
   return `${text} ${label ?? zone}`;
 }
 
+export function formatTime(iso: string, timeZone: string): string {
+  return formatDateTime(iso, timeZone, { part: 'time' });
+}
+
 /** Minutes since midnight (0-1439) at `date` in `timeZone`. */
 export function minutesIntoDay(date: Date, timeZone: string): number {
   const parts = new Intl.DateTimeFormat(APP_LOCALE, {

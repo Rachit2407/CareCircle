@@ -19,7 +19,6 @@ export const ROUTES = {
 } as const;
 
 /**
- * Where a signed-in user lands. Phase 1 has no dashboard yet, so development lands on the UI kit.
- * Phase 2 removes the DEV branch.
+ * Where a signed-in user lands: the CareCircle overview dashboard.
  */
-export const LANDING_ROUTE: string = import.meta.env.DEV ? ROUTES.kit : ROUTES.dashboard;
+export const LANDING_ROUTE: string = ROUTES.dashboard;
