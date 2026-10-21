@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "carecircle": {
+      "url": "http://localhost:8000/mcp/sse",
+      "transport": "sse",
+      "protocolVersion": "2025-11-25"
+    }
+  }
+}
