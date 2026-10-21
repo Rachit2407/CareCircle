@@ -56,3 +56,26 @@ async def test_confirmation_gating_for_high_priority_alert():
     res = await orchestrator.process_message(req)
     assert res.needsConfirmation is True
     assert res.pendingAction is not None
+
+
+async def test_cross_session_memory_correlation():
+    # User reports Dad feeling dizzy -> agent cross-references Amlodipine started 2 days ago
+    req = AssistantMessageRequest(
+        message="Dad felt unusually dizzy after taking his evening stroll",
+        patientId="pat_123"
+    )
+    res = await orchestrator.process_message(req)
+    assert "Amlodipine" in res.reply
+    assert "adjustment symptom" in res.reply
+    assert len(res.actions) > 0
+    assert res.actions[0].tool == "correlate_symptom_with_medications"
+
+
+async def test_clinical_doctor_summary_generation():
+    from app.services.summarizer import clinical_summarizer
+    summary = clinical_summarizer.generate_doctor_summary("pat_123", days=7)
+    assert summary["is_ai_generated"] is True
+    assert "Clinical & Care Digest" in summary["summary_markdown"]
+    assert "Amlodipine" in summary["summary_markdown"]
+    assert len(summary["key_highlights"]) > 0
+

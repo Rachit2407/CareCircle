@@ -19,3 +19,9 @@ class ActionConfirmationRequest(BaseModel):
     actionId: str = Field(..., description="ID of the pending action to confirm or reject")
     confirmed: bool = Field(..., description="True to execute, False to cancel")
     conversationId: str = Field(..., description="Conversation session ID")
+
+
+class DoctorSummaryRequest(BaseModel):
+    patientId: str = Field("patient_1", description="Patient ID for whom the summary is requested")
+    timeframeDays: int = Field(7, description="Number of days to summarize (default 7)")
+

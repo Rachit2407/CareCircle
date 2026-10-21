@@ -3,6 +3,8 @@ from typing import Dict, Any, List
 from app.services.policy import MedicalSafetyPolicy
 from app.services.mcp_client import mcp_client
 from app.services.llm_provider import llm_provider
+from app.services.memory import care_memory
+from app.services.summarizer import clinical_summarizer
 from app.schemas.requests import AssistantMessageRequest
 from app.schemas.responses import AssistantMessageResponse, ToolActionExecution, PendingAction
 from app.core.logging import logger
@@ -46,6 +48,27 @@ class OrchestrationEngine:
             return AssistantMessageResponse(
                 reply=advice_notice,
                 actions=[],
+                needsConfirmation=False,
+                conversationId=conv_id,
+                requestId=request_id
+            )
+
+        # Step 2.5: Cross-Session Care Memory Correlation (Agentic Reasoning)
+        patient_id = req.patientId or "patient_default"
+        correlation_note = care_memory.correlate_symptom_with_medications(patient_id, user_text)
+        if correlation_note and "blood pressure" not in user_text.lower() and "remind" not in user_text.lower():
+            # Record symptom in cross-session state
+            care_memory.record_symptom(patient_id, user_text, severity="mild")
+            history = self.sessions.setdefault(conv_id, [])
+            history.append({"role": "user", "content": user_text})
+            history.append({"role": "assistant", "content": correlation_note})
+            return AssistantMessageResponse(
+                reply=correlation_note,
+                actions=[ToolActionExecution(
+                    tool="correlate_symptom_with_medications",
+                    status="succeeded",
+                    arguments={"patient_id": patient_id, "symptom_text": user_text}
+                )],
                 needsConfirmation=False,
                 conversationId=conv_id,
                 requestId=request_id

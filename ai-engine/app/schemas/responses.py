@@ -31,3 +31,13 @@ class HealthResponse(BaseModel):
     status: str = "ok"
     version: str
     mcpConnected: bool
+
+
+class DoctorSummaryResponse(BaseModel):
+    patient_id: str
+    timeframe_days: int
+    generated_at: str
+    is_ai_generated: bool = True
+    summary_markdown: str
+    key_highlights: List[str]
+

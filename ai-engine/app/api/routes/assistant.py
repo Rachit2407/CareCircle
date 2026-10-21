@@ -1,8 +1,9 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Response
-from app.schemas.requests import AssistantMessageRequest, VoiceSpeakRequest, ActionConfirmationRequest
-from app.schemas.responses import AssistantMessageResponse
+from app.schemas.requests import AssistantMessageRequest, VoiceSpeakRequest, ActionConfirmationRequest, DoctorSummaryRequest
+from app.schemas.responses import AssistantMessageResponse, DoctorSummaryResponse
 from app.services.orchestrator import orchestrator
 from app.services.voice import voice_service
+from app.services.summarizer import clinical_summarizer
 
 router = APIRouter(prefix="/api/v1/assistant", tags=["Assistant"])
 
@@ -44,3 +45,14 @@ async def speak_text(req: VoiceSpeakRequest):
     if audio_content:
         return Response(content=audio_content, media_type="audio/wav")
     return {"message": "Audio synthesis skipped (no API key configured or fallback active)"}
+
+
+@router.post("/summarize", response_model=DoctorSummaryResponse)
+async def generate_clinical_summary(req: DoctorSummaryRequest):
+    """
+    Generates a concise, evidence-based clinical summary from past caregiver observations,
+    vitals, and medication adherence history. Ready for geriatricians and family doctor visits.
+    """
+    result = clinical_summarizer.generate_doctor_summary(req.patientId, req.timeframeDays)
+    return DoctorSummaryResponse(**result)
+
