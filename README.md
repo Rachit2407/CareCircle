@@ -1,4 +1,3 @@
-# CareCircle AI — Backend Architecture & Domain Services
 
 **Voice-first elderly-care coordination platform backend**
 
