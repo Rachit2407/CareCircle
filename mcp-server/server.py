@@ -1,6 +1,8 @@
 import asyncio
 import json
 import uuid
+import os
+import requests
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, Request
@@ -18,29 +20,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+BACKEND_API_BASE_URL = os.getenv("BACKEND_API_BASE_URL", "http://localhost:4000/api/v1")
+INTERNAL_SERVICE_TOKEN = os.getenv("INTERNAL_SERVICE_TOKEN", "carecircle_internal_secret_token_32_chars_long")
+
 # ---------------------------------------------------------
 # State Management: Stateful Sessions across Alexa+ Turns
 # ---------------------------------------------------------
 class CareCircleState:
     def __init__(self):
         self.patient_profile = {
-            "name": "Eleanor Vance",
-            "age": 78,
-            "emergency_contact": {"name": "David Vance (Son)", "phone": "+1-555-0199"},
-            "primary_physician": "Dr. Sarah Jenkins",
+            "name": "Raghav Rao",
+            "age": 74,
+            "emergency_contact": {"name": "Anita Rao (Daughter)", "phone": "+91 98765 43210"},
+            "primary_physician": "Dr. V. K. Sharma",
         }
         self.medications = [
-            {"id": "med-1", "name": "Lisinopril", "dosage": "10mg", "schedule": "08:00", "taken_today": False},
-            {"id": "med-2", "name": "Metformin", "dosage": "500mg", "schedule": "19:00", "taken_today": False},
+            {"id": "med-1", "name": "Amlodipine Besylate", "dosage": "5mg", "schedule": "08:30", "taken_today": True},
+            {"id": "med-2", "name": "Metformin Hydrochloride", "dosage": "500mg", "schedule": "19:30", "taken_today": False},
         ]
-        self.vitals_history: List[Dict[str, Any]] = []
+        self.vitals_history: List[Dict[str, Any]] = [
+            {"timestamp": "2026-10-22T08:30:00Z", "metric": "blood_pressure", "value": "128/82", "unit": "mmHg"}
+        ]
         self.incident_log: List[Dict[str, Any]] = []
-        self.session_context: Dict[str, Any] = {"consecutive_missed_doses": 0, "mood": "normal"}
+        self.session_context: Dict[str, Any] = {"consecutive_missed_doses": 0, "mood": "good"}
 
 state = CareCircleState()
 
 # ---------------------------------------------------------
-# MCP Definitions
+# MCP Definitions (Streamable HTTP Spec 2025-11-25)
 # ---------------------------------------------------------
 MCP_TOOLS = [
     {
@@ -54,7 +61,7 @@ MCP_TOOLS = [
     },
     {
         "name": "log_medication_intake",
-        "description": "Records that a patient took or missed a scheduled medication, updating care circles.",
+        "description": "Records that a patient took or missed a scheduled medication, updating care circles and database.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -79,6 +86,19 @@ MCP_TOOLS = [
         },
     },
     {
+        "name": "create_care_task",
+        "description": "Creates a care chore or reminder task for the elderly care circle.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Task description"},
+                "dueAt": {"type": "string", "description": "Scheduled time"},
+                "priority": {"type": "string", "enum": ["low", "normal", "high"], "default": "normal"}
+            },
+            "required": ["title"]
+        }
+    },
+    {
         "name": "escalate_to_caregiver",
         "description": "Triggers an immediate emergency notification to the caregiver or family member.",
         "inputSchema": {
@@ -93,8 +113,23 @@ MCP_TOOLS = [
 ]
 
 # ---------------------------------------------------------
-# Agentic Tool Logic
+# Agentic Tool Logic with Backend Database Synchronization
 # ---------------------------------------------------------
+def forward_to_backend(endpoint: str, payload: dict) -> Optional[dict]:
+    """Helper to forward tool mutations to backend domain services when active."""
+    headers = {
+        "Content-Type": "application/json",
+        "x-internal-service-token": INTERNAL_SERVICE_TOKEN
+    }
+    try:
+        resp = requests.post(f"{BACKEND_API_BASE_URL}{endpoint}", json=payload, headers=headers, timeout=2.5)
+        if resp.status_code in [200, 201]:
+            return resp.json()
+    except Exception:
+        # Fallback to local state if backend is offline
+        pass
+    return None
+
 def execute_tool(tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     timestamp = datetime.utcnow().isoformat()
 
@@ -129,6 +164,13 @@ def execute_tool(tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         else:
             state.session_context["consecutive_missed_doses"] = 0
 
+        # Sync with backend
+        forward_to_backend("/medications/doses/confirm", {
+            "medicationName": arguments["medication_name"],
+            "status": status_val,
+            "notes": arguments.get("notes", "")
+        })
+
         return {
             "success": True,
             "matched_medication": matched,
@@ -138,8 +180,8 @@ def execute_tool(tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
             "active_alert": state.session_context["consecutive_missed_doses"] >= 2
         }
 
-    elif tool_name == "record_vital_signs":
-        metric = arguments["metric_type"]
+    elif tool_name == "record_vital_signs" or tool_name == "add_health_reading":
+        metric = arguments.get("metric_type") or arguments.get("type", "vital")
         val = arguments["value"]
         vital_record = {
             "timestamp": timestamp,
@@ -148,6 +190,14 @@ def execute_tool(tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
             "unit": arguments.get("unit", "")
         }
         state.vitals_history.append(vital_record)
+
+        # Forward to backend health readings
+        forward_to_backend("/health-readings", {
+            "type": metric,
+            "value": val,
+            "unit": arguments.get("unit", ""),
+            "notes": arguments.get("notes", "")
+        })
 
         is_critical = False
         reason = ""
@@ -160,15 +210,28 @@ def execute_tool(tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
 
         return {"recorded": vital_record, "requires_attention": is_critical}
 
-    elif tool_name == "escalate_to_caregiver":
+    elif tool_name == "create_care_task":
+        task_id = f"task_{uuid.uuid4().hex[:8]}"
+        task_record = {
+            "id": task_id,
+            "title": arguments["title"],
+            "dueAt": arguments.get("dueAt", "today"),
+            "priority": arguments.get("priority", "normal"),
+            "timestamp": timestamp
+        }
+        forward_to_backend("/tasks", task_record)
+        return {"success": True, "task": task_record}
+
+    elif tool_name == "escalate_to_caregiver" or tool_name == "send_caregiver_alert":
         alert = {
             "id": str(uuid.uuid4())[:8],
             "timestamp": timestamp,
-            "severity": arguments["severity"],
-            "reason": arguments["reason"],
+            "severity": arguments.get("severity", "high"),
+            "reason": arguments.get("reason") or arguments.get("message", "Caregiver assistance needed"),
             "notified": state.patient_profile["emergency_contact"]
         }
         state.incident_log.append(alert)
+        forward_to_backend("/alerts", alert)
         return {"status": "dispatched", "alert": alert}
 
     raise ValueError(f"Unknown tool: {tool_name}")
@@ -260,3 +323,8 @@ async def mcp_messages(request: Request):
             "message": f"Method {method} not found"
         }
     }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("server:app", host="127.0.0.1", port=8000, reload=True)

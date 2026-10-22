@@ -797,33 +797,38 @@ export const appMockRoutes: readonly MockRoute[] = [
         "I'm CareCircle Assistant. I can help coordinate your daily care tasks, upcoming medication times, and doctor appointments.";
       const actions: unknown[] = [];
 
-      if (userMsg.includes('task') || userMsg.includes('due today')) {
+      // 1. Emergency safety check
+      if (userMsg.includes('chest pain') || userMsg.includes("can't breathe") || userMsg.includes('cannot breathe') || userMsg.includes('stroke') || userMsg.includes('bleeding')) {
+        reply = "CRITICAL NOTICE: You mentioned symptoms that may require urgent medical attention. Please call your local emergency services (e.g., 911 or 112) or seek immediate emergency care right now. Do not wait for caregiver coordination or this assistant.";
+      }
+      // 2. Clinical boundary / prescription check
+      else if (userMsg.includes('prescribe') || userMsg.includes('change his dose') || userMsg.includes('change her dose') || userMsg.includes('double the dose')) {
+        reply = "As an AI care assistant, I cannot modify medication dosages, prescribe drugs, or provide clinical diagnoses. Please consult your prescribing physician, cardiologist, or qualified healthcare professional before making any changes.";
+      }
+      // 3. Cross-session memory correlation
+      else if (userMsg.includes('dizzy') || userMsg.includes('dizziness') || userMsg.includes('lightheaded')) {
+        reply = "Proactive Clinical Note: Dad started Amlodipine (5mg) 2 days ago. Dizziness is a common temporary adjustment symptom for blood pressure medications. Would you like me to flag this for his doctor or record his current BP?";
+        actions.push({ tool: 'correlate_symptom_with_medications', status: 'succeeded', arguments: { patient_id: 'cir_demo', symptom: 'dizziness' } });
+      }
+      // 4. Task creation reminder
+      else if (userMsg.includes('remind') || userMsg.includes('walk') || userMsg.includes('schedule a task')) {
+        reply = "I created the reminder: 'Take his evening walk at 6:00 pm' scheduled for 6:00 PM.";
+        actions.push({ tool: 'create_care_task', status: 'succeeded', arguments: { title: 'Take his evening walk at 6:00 pm', dueAt: '6:00 PM', priority: 'normal' } });
+      }
+      // 5. Vitals logging
+      else if (userMsg.includes('blood pressure') || userMsg.includes('125/80') || userMsg.includes('120/80')) {
+        reply = "Logged blood pressure reading of 125/80 mmHg. It has been saved to the family dashboard.";
+        actions.push({ tool: 'add_health_reading', status: 'succeeded', arguments: { type: 'blood_pressure', value: '125/80', unit: 'mmHg' } });
+      }
+      // 6. Default tasks query
+      else if (userMsg.includes('task') || userMsg.includes('due today')) {
         reply = `You have ${initialTasks.filter((t) => t.status === 'pending').length} tasks pending for today. Blood pressure check is scheduled for this morning.`;
         actions.push({ tool: 'list_tasks', status: 'succeeded', arguments: { status: 'pending' } });
       } else if (userMsg.includes('appointment')) {
-        const nextApt = initialAppointments[0];
-        const nextDate = nextApt
-          ? new Date(nextApt.startsAt).toLocaleDateString(undefined, {
-              weekday: 'short',
-              month: 'short',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            })
-          : 'soon';
-        reply = `Next appointment is with ${nextApt?.provider ?? 'your doctor'} (${nextApt?.specialty ?? 'General'}) on ${nextDate} at ${nextApt?.location ?? 'the clinic'}.`;
+        reply = `Next appointment is with Dr. V. K. Sharma (Cardiologist) on Oct 24 at Care Heart Clinic.`;
         actions.push({ tool: 'list_appointments', status: 'succeeded' });
-      } else if (
-        userMsg.includes('medication') ||
-        userMsg.includes('reminder') ||
-        userMsg.includes('dose')
-      ) {
-        reply =
-          "Today's active medications include Amlodipine Besylate 5mg (morning 08:30) and Metformin Hydrochloride 500mg (evening 19:30).";
-        actions.push({ tool: 'get_medication_schedule', status: 'succeeded' });
-      } else if (userMsg.includes('update') || userMsg.includes('summary')) {
-        reply =
-          'Recent care summary: Morning blood pressure was normal at 128/82 mmHg. Mood was reported as good with mild knee stiffness. No missed doses recorded.';
+      } else {
+        reply = "I'm CareCircle Assistant. I can help coordinate your daily care tasks, upcoming medication times, and doctor appointments.";
       }
 
       return {
