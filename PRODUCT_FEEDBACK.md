@@ -34,13 +34,13 @@ Powering both the **AI Engine Orchestrator** (port 8001) and the **Standalone MC
 ### What worked well:
 - **High Throughput & Asynchronous Concurrency:** Async endpoint handling allowed real-time streaming of speech transcripts, LLM decision branches, and tool calls without blocking.
 - **Pydantic V2 Validation:** Instant request/response validation guaranteed that malformed payloads from speech-to-text transcripts were caught before reaching domain logic.
-- **Interactive OpenAPI Documentation (`/docs`):** Made cross-team testing between frontend, backend, and AI integration effortless.
+- **Interactive OpenAPI Documentation (`/docs`):** Made cross-team testing between frontend, backend, and AI integration straightforward.
 
 ### What didn't work / Pain points:
 - Minor dependency compatibility nuances with Python 3.13 when combining early Pydantic-settings releases, which was easily resolved with pinned dependencies.
 
 ### Onboarding experience:
-- Seamless. FastAPI remains the industry gold standard for Python AI services.
+- Smooth. FastAPI has well-maintained docs and a large community, making onboarding quick.
 
 ### Would we build with it again?
 - **Yes, 100%.** It is our default choice for AI service orchestration.

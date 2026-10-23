@@ -9,7 +9,7 @@ This document defines the complete HTTP REST API for CareCircle AI, serving the 
 ### Base URLs & Dual Mounting
 - Default API Port: `4000`
 - API Prefix: `/api/v1`
-- **Dual Mounted Auth**: Authentication endpoints are mounted at both `/auth/*` and `/api/v1/auth/*` for seamless frontend compatibility.
+- **Dual Mounted Auth**: Authentication endpoints are mounted at both `/auth/*` and `/api/v1/auth/*` for straightforward frontend integration.
 - **Dual Mounted MCP**: MCP tool endpoints are mounted at both `/mcp/*` and `/api/v1/mcp/*`.
 
 ### Response Envelopes
