@@ -1,11 +1,11 @@
-# CareCircle AI 🎙️👵
+# CareCircle AI
 
 **Voice-first AI Care Coordination Assistant for Families**  
 *Built for the Amazon Alexa+ Track*
 
 ---
 
-## 🏛️ Monorepo Architecture
+## Monorepo Architecture
 
 CareCircle AI is organized into 4 modular services:
 
@@ -19,7 +19,7 @@ CareCircle/
 
 ---
 
-## 🚀 Quick Start Guide
+## Quick Start Guide
 
 ### 1. Backend (Port 5000)
 ```bash
@@ -51,5 +51,5 @@ npm run dev
 
 ---
 
-## 📜 License
+## License
 MIT License

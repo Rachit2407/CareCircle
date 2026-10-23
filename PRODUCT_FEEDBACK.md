@@ -15,7 +15,7 @@ We used MCP as the standardized transport and tool-discovery layer connecting ou
 - **Streaming over SSE (`/mcp/sse`):** Server-Sent Events provided low-latency delivery of tool events suitable for voice-assisted turn cycles.
 
 ### What didn't work / Pain points:
-- **Documentation & Spec Velocity:** The `2025-11-25` specification is cutting-edge. Python and TypeScript documentation around remote HTTP streamable transports had minimal complete end-to-end examples, requiring custom JSON-RPC protocol handling.
+- **Documentation & Spec Velocity:** The `2025-11-25` specification is recent. Python and TypeScript documentation around remote HTTP streamable transports had minimal complete end-to-end examples, requiring custom JSON-RPC protocol handling.
 - **Error Propagation in Streamed Sessions:** Mapping upstream domain errors (such as unauthorized patient scope) back through JSON-RPC error objects without leaking internal system traces required extra manual sanitization.
 
 ### Onboarding experience:
@@ -32,7 +32,7 @@ We used MCP as the standardized transport and tool-discovery layer connecting ou
 Powering both the **AI Engine Orchestrator** (port 8001) and the **Standalone MCP Server** (port 8000), serving async conversational endpoints, safety policies, and SSE streams.
 
 ### What worked well:
-- **Blazing Performance & Concurrency:** Async endpoint handling allowed real-time streaming of speech transcripts, LLM decision branches, and tool calls without blocking.
+- **High Throughput & Asynchronous Concurrency:** Async endpoint handling allowed real-time streaming of speech transcripts, LLM decision branches, and tool calls without blocking.
 - **Pydantic V2 Validation:** Instant request/response validation guaranteed that malformed payloads from speech-to-text transcripts were caught before reaching domain logic.
 - **Interactive OpenAPI Documentation (`/docs`):** Made cross-team testing between frontend, backend, and AI integration effortless.
 

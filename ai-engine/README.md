@@ -6,7 +6,7 @@ Built with **FastAPI**, **MCP Client (Spec 2025-11-25+)**, and **Sarvam Voice AI
 
 ---
 
-## 🛠️ Key Capabilities
+## Key Capabilities
 
 1. **Healthcare Guardrails & Safety Policies:**
    - Real-time emergency symptom detection (triggers immediate local EMS guidance).
@@ -21,7 +21,7 @@ Built with **FastAPI**, **MCP Client (Spec 2025-11-25+)**, and **Sarvam Voice AI
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### 1. Install Dependencies
 ```bash
@@ -49,7 +49,7 @@ Interactive API docs will be live at: `http://localhost:8001/docs`
 
 ---
 
-## 🧪 Running Tests
+## Running Tests
 ```bash
 pytest
 ```
